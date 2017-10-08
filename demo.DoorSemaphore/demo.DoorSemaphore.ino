@@ -1,4 +1,4 @@
-#include <Ultrasonic.h>
+#include <NewPing.h>
 
 // Definindo pinos para atuadores
 
@@ -12,25 +12,22 @@
 // Parâmetros de controle
 
 #define intDistanciaMaxima  200 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
-#define intFrequencia       700 // Wait 50ms between pings (about 20 pings/sec). 29ms should be the shortest delay between pings.
-
-int estaLonge = 0;
-int estaMedio = 0;
-int estaPerto = 0;
+#define intFrequencia       50 // Wait 50ms between pings (about 20 pings/sec). 29ms should be the shortest delay between pings.
+#define intQtdTestes        6 // Quantidade de testes para fazer antes de obter uma média da distância
 
 // Medidas em centimetros
-long distancia = intDistanciaMaxima;
 long longe = 140;
-long medio = 70;
-long perto = 25;
+long medio = 85;
+long perto = 35;
 
 // Instância o sensor de distância com pinos PWN
 
-Ultrasonic ultrasonic(pinTRIGGER, pinECHO);
+NewPing sonar(pinTRIGGER, pinECHO, intDistanciaMaxima);
 
 void setup() {
   
-  Serial.begin(9600);
+  // Somente para testes
+  //Serial.begin(9600); // Open serial monitor at 9600 baud to see ping results.
 
   pinMode(ledLonge, OUTPUT);
   pinMode(ledMedio, OUTPUT);
@@ -39,50 +36,48 @@ void setup() {
 
 void loop() {
 
-  distancia = ultrasonic.distanceRead();
+  long us = sonar.ping_median(intQtdTestes); // Medida em microsegundos
+  long distancia = sonar.convert_cm(us); // Converte tempo para centimetros
   
-  Serial.print("distancia: ");
-  Serial.print(distancia);
-  Serial.println("cm");
+  // Somente para testes
+  //Serial.print("distancia: ");
+  //Serial.print(distancia);
+  //Serial.println("cm");
 
-  // Avisa sobre proximidade
-  // Está se aproximando
+  if (distancia <= 0) {
 
-  if (distancia <= longe && estaLonge == 0) {
-    digitalWrite(ledLonge, HIGH);
-    estaLonge ++;
-  } else if (distancia > longe && estaLonge == 1) {
-    estaLonge ++;
-  } else if (distancia > (longe + 2) && estaLonge > 0) {
-    // Apaga o led
-    digitalWrite(ledLonge, LOW);
-    estaLonge = 0;
-  }
+    // Ignora, provavelmente um erro na leitura
+    
+  } else if (distancia <= perto) {
 
-  // Avisa que está bem próximo
-
-  if (distancia <= medio && estaMedio == 0) {
-    digitalWrite(ledMedio, HIGH);
-    estaMedio ++;
-  } else if (distancia > medio && estaMedio == 1) {
-    estaMedio ++;
-  } else if (distancia > (medio + 2) && estaMedio > 0) {
-    // Apaga o led
-    digitalWrite(ledMedio, LOW);
-    estaMedio = 0;
-  }
-
-  // Avisa que vai abrir a porta
-
-  if (distancia <= perto && estaPerto == 0) {
+    // Avisa que vai abrir a porta
+    
     digitalWrite(ledPerto, HIGH);
-    estaPerto ++;
-  } else if (distancia > perto && estaPerto == 1) {
-    estaPerto ++;
-  } else if (distancia > (perto + 2) && estaPerto > 0) {
-    // Apaga o led
+    digitalWrite(ledMedio, HIGH);
+    digitalWrite(ledLonge, HIGH);
+
+  } else if (distancia <= medio) {
+
+    // Avisa que está bem próximo
+    
     digitalWrite(ledPerto, LOW);
-    estaPerto = 0;
+    digitalWrite(ledMedio, HIGH);
+    digitalWrite(ledLonge, HIGH);
+    
+  } else if (distancia <= longe) {
+
+    // Está se aproximando
+    
+    digitalWrite(ledPerto, LOW);
+    digitalWrite(ledMedio, LOW);
+    digitalWrite(ledLonge, HIGH);
+    
+  } else {
+
+    digitalWrite(ledPerto, LOW);
+    digitalWrite(ledMedio, LOW);
+    digitalWrite(ledLonge, LOW);
+    
   }
 
   // Aguarda até a próxima leitura
