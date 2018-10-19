@@ -1,19 +1,27 @@
 #include <Ultrasonic.h>
 
-// Definindo pinos para atuadores
+// Definindo pinos (digitais) para atuadores
 
-#define ledLonge   3
-#define ledMedio   7
-#define ledPerto   11
-#define pinBuzzer  12
+#define ledLonge   3  // D3
+#define ledMedio   7  // D7
+#define ledPerto   11 // D11
+#define pinBuzzer  12 // D12
 
-#define pinTRIGGER  2  // Arduino pin tied to trigger pin on the ultrasonic sensor.
-#define pinECHO     5  // Arduino pin tied to echo pin on the ultrasonic sensor.
+// Definindo pinos para sensores
+
+#define pinTRIGGER  2  // D2 - Arduino pin tied to trigger pin on the ultrasonic sensor.
+#define pinECHO     5  // D5 ~ PWM - Arduino pin tied to echo pin on the ultrasonic sensor.
+
+// Alguns pinos têm capacidades especiais. 
+// Por exemplo, os pinos digitais 3, 5, 6, 9, 10 e 11, no Arduino Nano, 
+// permitem gerar saída analógica usando PWM.
 
 // Parâmetros de controle
 
-#define intDistanciaMaxima  200 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
-#define intFrequencia       1000 // Wait 50ms between pings (about 20 pings/sec). 29ms should be the shortest delay between pings.
+#define intDistanciaMaxima 200  // Maximum distance we want to ping for (in centimeters). 
+                                // Maximum sensor distance is rated at 400-500cm.
+#define intFrequencia      1000 // Wait 50ms between pings (about 20 pings/sec). 
+                                // 29ms should be the shortest delay between pings.
 
 bool estaLonge = false;
 bool estaMedio = false;
