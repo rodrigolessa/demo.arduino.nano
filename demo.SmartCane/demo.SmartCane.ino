@@ -9,9 +9,10 @@
 // Definindo pinos (digitais) para atuadores
 
 #define ledWarning  7  // D7
-#define pinBuzzer   12 // D12
-#define pinServo    11 // D11 ~ pwm
+#define pinoFT      9  // D9  ~ pwm
 #define pinoLDR     10 // D10 ~ pwm
+#define pinServo    11 // D11 ~ pwm
+#define pinBuzzer   12 // D12
 
 // Definindo pinos para sensores
 
@@ -35,7 +36,7 @@
 // 29ms should be the shortest delay between pings.
 
 // Medidas em centimetros
-float longe = 120;
+float longe = 100;
 float medio = 60;
 float perto = 30;
 
@@ -56,11 +57,16 @@ int servoAngleInit = 40;
 // Si  - B4 = 493.88
 // Dó  - C5 = 523.25
 
-float buzzDuration = 2000;
+//float buzzDuration = 2000;
+float buzzDuration = 200;
+//float buzzFrequence = 261.63;
 float buzzFrequence = 261.63;
 
 // Armazenar o valor lido do LDR
 int lum = 0;
+
+// Valor lido pelo fototransistor do Infrared
+int infraval = 0;
 
 bool standby = false;
 
@@ -83,6 +89,7 @@ void setup() {
   pinMode(pinoLDR, INPUT); // declarando pino de entrada
   pinMode(ledWarning, OUTPUT); // declarando pino de saída
   pinMode(pinBuzzer, OUTPUT);
+  pinMode(pinoFT, INPUT); //Pino ligado ao coletor do fototransistor
 
   // Iniciar motor servo e reposicionar
   servo.attach(pinServo);
@@ -104,6 +111,7 @@ void loop() {
       objectWarning(medianDistance());
     }
 
+    infraRedDistance();
   }
 
   handleSerial();
@@ -118,7 +126,8 @@ void loop() {
       objectWarning(medianDistance());
       //delay(intFrequence);
     }
-    
+
+    infraRedDistance();
   }
 
   handleSerial();
@@ -195,38 +204,79 @@ void objectWarning(float distance) {
   // Se zero não houve retorno. Se maior que o distância máxima controlada não é necessário avisar
   if (distance > minDistance && distance < maxDistance) {
     
-    if (distance <= perto) {
+    if (distance < perto) {
       
       tone(pinBuzzer, buzzFrequence, buzzDuration);
 
       float distanceCheck = medianDistance();
     
-      if (distance > minDistance && distance < maxDistance && distance <= perto) {
+      if (distance > minDistance && distance < maxDistance && distance < perto) {
         
         delay(intFrequence);
 
         distanceCheck = medianDistance();
 
-        if (distance > minDistance && distance < maxDistance && distance <= perto) {
+        if (distance > minDistance && distance < maxDistance && distance < perto) {
           delay(intFrequence);
         }
       }
       
-    } else if (distance <= medio) {
+    } else if (distance < medio) {
       
       tone(pinBuzzer, buzzFrequence, buzzDuration);
 
       float distanceCheck = medianDistance();
     
-      if (distance > minDistance && distance < maxDistance && distance <= medio) {
+      if (distance > minDistance && distance < maxDistance && distance < medio) {
         
         delay(intFrequence);
       }
       
-    } else if (distance <= longe) {
-      tone(pinBuzzer, buzzFrequence, buzzDuration);
+    } else if (distance < longe) {
+      tone(pinBuzzer, buzzFrequence, buzzDuration / 2);
     }
   }
+}
+
+/////////////////////////////////////////////////
+// Controle de entrada e saída de comandos
+
+void infraRedDistance() {
+
+  lum = 0;
+  lum = analogRead(pinoLDR); // lendo o sensor
+      
+  for (int i = 0; i < 3; i = i + 1){
+    lum = lum + analogRead(pinoLDR); // lendo o sensor
+    delay(5);
+  }
+    
+  lum = lum / 3;
+      
+  Serial.print("Luminosidade: "); // exibindo no console a resistencia do sensor LDR
+  Serial.println(lum); // exibindo no console a resistencia do sensor LDR
+    
+  //if (lum > 800){
+  //digitalWrite(pinoLED, LOW); // muito claro, desligar o LED
+  //} else if (lum < 400){
+  //digitalWrite(pinoLED, HIGH); // ligar o LED
+  //}
+
+  infraval = analogRead(pinoFT);
+
+  Serial.print("Infrared: ");
+  Serial.println(infraval);
+  
+  if (infraval > 0)
+  {  
+    Serial.println("Objeto : Detectado");  
+  }  
+  else  
+  {  
+    Serial.println("Objeto : Ausente !");  
+  }
+
+  delay(500);
 }
 
 /////////////////////////////////////////////////
@@ -243,24 +293,6 @@ void handleSerial() {
         Serial.println("Restarting...");  // exbindo somente para testes
 
         standby = false;
-      
-        //lum = 0;
-        //lum = analogRead(pinoLDR); // lendo o sensor
-        
-        //for (i = 0; i < 3; i = i + 1){
-          //lum = lum + analogRead(pinoLDR); // lendo o sensor
-        //}
-      
-        //lum = lum / 3;
-        
-        //Serial.print("Luminosidade: "); // exibindo no console a resistencia do sensor LDR
-        //Serial.println(lum); // exibindo no console a resistencia do sensor LDR
-      
-        //if (lum > 800){
-          //digitalWrite(pinoLED, LOW); // muito claro, desligar o LED
-        //} else if (lum < 400){
-          //digitalWrite(pinoLED, HIGH); // ligar o LED
-        //}
         
         break;
         
