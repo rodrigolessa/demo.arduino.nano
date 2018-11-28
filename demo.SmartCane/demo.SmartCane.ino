@@ -13,6 +13,8 @@
 #define pinoLDR     10 // D10 ~ pwm
 #define pinServo    11 // D11 ~ pwm
 #define pinBuzzer   12 // D12
+#define pinBtnPanic 4 // D4
+#define pinBtn      8 // D8
 
 // Definindo pinos para sensores
 
@@ -90,6 +92,8 @@ void setup() {
   pinMode(ledWarning, OUTPUT); // declarando pino de saída
   pinMode(pinBuzzer, OUTPUT);
   pinMode(pinoFT, INPUT); //Pino ligado ao coletor do fototransistor
+  pinMode(pinBtnPanic, INPUT);
+  pinMode(pinBtn, INPUT);
 
   // Iniciar motor servo e reposicionar
   servo.attach(pinServo);
@@ -116,10 +120,21 @@ void loop() {
 
   handleSerial();
 
+  int btnPanic = digitalRead(pinBtnPanic);
+  if (btnPanic == 1){
+    Serial.print("Don't Panic!");
+    Standby(true);
+    tone(pinBuzzer, buzzFrequence, buzzDuration);
+    delay(2);
+    noTone(pinBuzzer);
+    delay(2);
+    tone(pinBuzzer, buzzFrequence, buzzDuration);
+    delay(2);
+    noTone(pinBuzzer);
+  }
+
   if (standby == false) {
   
-    digitalWrite(ledWarning, LOW); // desligar o LED
-    
     // Repeats the previous lines from 120 to 20 degrees
     for(int i = servoAngleMax; i > servoAngleInit; i--) {
       servo.write(i);
@@ -131,6 +146,12 @@ void loop() {
   }
 
   handleSerial();
+
+  int btn = digitalRead(pinBtn);
+  if (btn == 1){
+    Serial.print("Second button pressed!");
+    Standby(false);
+  }
 
   if (standby) {
 
@@ -190,8 +211,8 @@ float medianDistance() {
   //Serial.print("Total: ");
   //Serial.println(total);
 
-  Serial.print("Distancia em cm: ");
-  Serial.println(distance);
+  //Serial.print("Distancia em cm: ");
+  //Serial.println(distance);
 
   return distance;
 }
@@ -290,24 +311,26 @@ void handleSerial() {
 
     switch (incomingChar) {
       case '+':
-        Serial.println("Restarting...");  // exbindo somente para testes
-
-        standby = false;
-        
+        Standby(false);
         break;
-        
       case '-':
-      
-        Serial.println("Standby...");  // exbindo somente para testes
-        
-        standby = true;
-
-        // Desligar o alerta
-        noTone(pinBuzzer);
-        
-        moveTo(servoAngleMax);
-        
+        Standby(true);
         break;
     }
+  }
+}
+
+void Standby(bool action) {
+  if (action == true){
+    Serial.println("Standby...");  // exbindo somente para testes
+    standby = true;
+    digitalWrite(ledWarning, LOW); // desligar o LED
+    // Desligar o alerta
+    noTone(pinBuzzer);
+    moveTo(servoAngleMax);
+  }
+  else if (action == false){
+    Serial.println("Restarting...");  // exbindo somente para testes
+    standby = false;
   }
 }
