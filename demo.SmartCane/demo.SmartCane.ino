@@ -4,6 +4,9 @@
 #include <SoftwareSerial.h>
 #include <Servo.h>
 #include <Ultrasonic.h>
+#include <StaticThreadController.h>
+#include <Thread.h>
+#include <ThreadController.h>
 
 /////////////////////////////////////////////////
 // Definindo pinos (digitais) para atuadores
@@ -59,16 +62,8 @@ int servoAngleInit = 40;
 // Si  - B4 = 493.88
 // Dó  - C5 = 523.25
 
-//float buzzDuration = 2000;
 float buzzDuration = 200;
-//float buzzFrequence = 261.63;
 float buzzFrequence = 261.63;
-
-// Armazenar o valor lido do LDR
-int lum = 0;
-
-// Valor lido pelo fototransistor do Infrared
-int infraval = 0;
 
 bool standby = false;
 
@@ -80,6 +75,79 @@ Ultrasonic ultrasonic(pinTRIGGER, pinECHO);
 
 // Instância servo motor
 Servo servo;
+
+/////////////////////////////////////////////////
+// ThreadController that will controll all threads
+ThreadController controll = ThreadController();
+
+// Thread to control servo and ultrasonic sensor (not pointer)
+Thread ultrasonicReading = Thread();
+
+// Thread to control infrared sensor (not pointer)
+Thread infraredReading = Thread();
+
+// Callback for ultrasonicReading
+void ultrasonicCallback() {
+  
+  for(int i = servoAngleInit; i <= servoAngleMax; i++) {
+    servo.write(i);
+    objectWarning(medianDistance());
+    //delay(intFrequence);
+  }
+
+  // Repeats the previous lines from 120 to 20 degrees
+  for(int i = servoAngleMax; i > servoAngleInit; i--) {
+    servo.write(i);
+    objectWarning(medianDistance());
+    //delay(intFrequence);
+  }
+
+  Serial.print("Ultrasonic. I'm running on: ");
+  Serial.println(millis());
+}
+
+// Callback
+void infraredCallback(){
+  
+  // Armazenar o valor lido do LDR
+  int lum = 0;
+      
+  for (int i = 0; i < 3; i = i + 1){
+    lum = lum + analogRead(pinoLDR); // lendo o sensor
+    delay(5);
+  }
+    
+  lum = lum / 3;
+      
+  Serial.print("Luminosidade: "); // exibindo no console a resistencia do sensor LDR
+  Serial.println(lum); // exibindo no console a resistencia do sensor LDR
+    
+  //if (lum > 800){
+  // muito claro
+  //} else if (lum < 400){
+  // baixa luminosidade
+  //}
+
+  // Valor lido pelo fototransistor do Infrared
+  int infraval = analogRead(pinoFT);
+
+  Serial.print("Infrared: ");
+  Serial.println(infraval);
+  
+  if (infraval > 0)
+  {
+    Serial.println("Objeto: Detectado.");
+    Serial.println("Infrared-235682.");
+  }
+  else  
+  {  
+    Serial.println("Objeto: Ausente!");  
+    Serial.println("Infrared-000000.");
+  }
+
+  Serial.print("Infrared. I'm running on: ");
+  Serial.println(millis());
+}
 
 /////////////////////////////////////////////////
 // Esta função "setup" roda uma vez quando a placa e ligada ou resetada
@@ -99,6 +167,17 @@ void setup() {
   servo.attach(pinServo);
 
   moveTo(servoAngleInit);
+
+  // Configure threads
+  ultrasonicReading.onRun(ultrasonicCallback);
+  ultrasonicReading.setInterval(5);
+
+  infraredReading.onRun(infraredCallback);
+  infraredReading.setInterval(5);
+
+  // Adds both threads to the controller
+  controll.add(&ultrasonicReading);
+  controll.add(&infraredReading); // & to pass the pointer to it
 }
 
 /////////////////////////////////////////////////
@@ -106,59 +185,28 @@ void setup() {
 
 void loop() {
 
-  if (standby == false) {
+  // Run ThreadController
+  // this will check every thread inside ThreadController,
+  // if it should run. If yes, he will run it;
+  controll.run();
 
+  handleSerial();
+
+  if (standby == false) {
     digitalWrite(ledWarning, HIGH); // ligar o LED
-
-    for(int i = servoAngleInit; i <= servoAngleMax; i++) {
-      servo.write(i);
-      objectWarning(medianDistance());
-    }
-
-    infraRedDistance();
+  } else {
+    digitalWrite(ledWarning, LOW); // desligar o LED
   }
 
-  handleSerial();
-
-  int btnPanic = digitalRead(pinBtnPanic);
-  if (btnPanic == 1){
-    Serial.print("Don't Panic!");
-    Standby(true);
-    tone(pinBuzzer, buzzFrequence, buzzDuration);
-    delay(2);
-    noTone(pinBuzzer);
-    delay(2);
-    tone(pinBuzzer, buzzFrequence, buzzDuration);
-    delay(2);
-    noTone(pinBuzzer);
+  if (digitalRead(pinBtnPanic) == 1){
+    PanicButtonAction();
   }
 
-  if (standby == false) {
-  
-    // Repeats the previous lines from 120 to 20 degrees
-    for(int i = servoAngleMax; i > servoAngleInit; i--) {
-      servo.write(i);
-      objectWarning(medianDistance());
-      //delay(intFrequence);
-    }
-
-    infraRedDistance();
-  }
-
-  handleSerial();
-
-  int btn = digitalRead(pinBtn);
-  if (btn == 1){
+  if (digitalRead(pinBtn) == 1){
     Serial.print("Second button pressed!");
     Standby(false);
   }
-
-  if (standby) {
-
-    // For debug
-    float distance = medianDistance();
-    delay(intFrequence * 5);
-  }
+  
 }
 
 /////////////////////////////////////////////////
@@ -206,13 +254,10 @@ float medianDistance() {
   delay(5);
 
   float total = d1 + d2 + d3 + d4;
-  float distance = total / 3;
+  float distance = total / 4;
 
-  //Serial.print("Total: ");
-  //Serial.println(total);
-
-  //Serial.print("Distancia em cm: ");
-  //Serial.println(distance);
+  Serial.print("Distancia em cm: ");
+  Serial.println(distance);
 
   return distance;
 }
@@ -228,6 +273,8 @@ void objectWarning(float distance) {
     if (distance < perto) {
       
       tone(pinBuzzer, buzzFrequence, buzzDuration);
+
+      Serial.println("Ultrasonic-456275.");
 
       float distanceCheck = medianDistance();
     
@@ -246,6 +293,8 @@ void objectWarning(float distance) {
       
       tone(pinBuzzer, buzzFrequence, buzzDuration);
 
+      Serial.println("Ultrasonic-123245.");
+
       float distanceCheck = medianDistance();
     
       if (distance > minDistance && distance < maxDistance && distance < medio) {
@@ -254,54 +303,16 @@ void objectWarning(float distance) {
       }
       
     } else if (distance < longe) {
+      
       tone(pinBuzzer, buzzFrequence, buzzDuration / 2);
+      
+      Serial.println("Ultrasonic-021320.");
     }
   }
 }
 
 /////////////////////////////////////////////////
-// Controle de entrada e saída de comandos
-
-void infraRedDistance() {
-
-  lum = 0;
-  lum = analogRead(pinoLDR); // lendo o sensor
-      
-  for (int i = 0; i < 3; i = i + 1){
-    lum = lum + analogRead(pinoLDR); // lendo o sensor
-    delay(5);
-  }
-    
-  lum = lum / 3;
-      
-  Serial.print("Luminosidade: "); // exibindo no console a resistencia do sensor LDR
-  Serial.println(lum); // exibindo no console a resistencia do sensor LDR
-    
-  //if (lum > 800){
-  //digitalWrite(pinoLED, LOW); // muito claro, desligar o LED
-  //} else if (lum < 400){
-  //digitalWrite(pinoLED, HIGH); // ligar o LED
-  //}
-
-  infraval = analogRead(pinoFT);
-
-  Serial.print("Infrared: ");
-  Serial.println(infraval);
-  
-  if (infraval > 0)
-  {  
-    Serial.println("Objeto : Detectado");  
-  }  
-  else  
-  {  
-    Serial.println("Objeto : Ausente !");  
-  }
-
-  delay(500);
-}
-
-/////////////////////////////////////////////////
-// Controle de entrada e saída de comandos
+// Controle de entrada e saída de comandos pelo Bluetooth
 
 void handleSerial() {
 
@@ -321,16 +332,29 @@ void handleSerial() {
 }
 
 void Standby(bool action) {
+  
   if (action == true){
-    Serial.println("Standby...");  // exbindo somente para testes
     standby = true;
-    digitalWrite(ledWarning, LOW); // desligar o LED
-    // Desligar o alerta
-    noTone(pinBuzzer);
-    moveTo(servoAngleMax);
-  }
-  else if (action == false){
-    Serial.println("Restarting...");  // exbindo somente para testes
+    Serial.println("Standbying...");  // exbindo somente para testes
+    //digitalWrite(ledWarning, LOW); // desligar o LED
+    //noTone(pinBuzzer); // Desligar o alerta
+    //moveTo(servoAngleMax);
+    
+  } else if (action == false){
     standby = false;
+    Serial.println("Restarting...");  // exbindo somente para testes
   }
+}
+
+void PanicButtonAction(){
+  Serial.print("Panic button pressed!");
+  Standby(true);
+  tone(pinBuzzer, buzzFrequence, buzzDuration);
+  delay(buzzDuration);
+  noTone(pinBuzzer);
+  delay(buzzDuration);
+  tone(pinBuzzer, buzzFrequence, buzzDuration);
+  delay(buzzDuration);
+  noTone(pinBuzzer);
+  delay(buzzDuration);
 }
